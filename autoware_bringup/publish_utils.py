@@ -12,7 +12,7 @@ from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
 
 Image_DATA_PATH = 'src/autoware_bringup/image/2011_09_26_drive_0002_sync/2011_09_26/2011_09_26_drive_0002_sync'
-OXT_DATA_PATH = 'src/autoware_bringup/oxts/2011_09_26_drive_0002_sync/2011_09_26/2011_09_26_drive_0002_sync'
+OXT_DATA_PATH = 'src/autoware_bringup/image/2011_09_26_drive_0002_sync/2011_09_26/2011_09_26_drive_0002_sync'
 cv_bridge  = CvBridge()
 data_number = len(os.listdir(os.path.join(Image_DATA_PATH, 'image_02/data')))
 FRAME_ID = 'map'  # 依你的座標框架而定

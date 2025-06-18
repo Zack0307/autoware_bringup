@@ -5,7 +5,7 @@ import pandas as pd
 from tf_transformations import quaternion_from_euler
 from std_msgs.msg import Header
 from sensor_msgs_py import point_cloud2 as pcl2
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, NavSatFix
 from visualization_msgs.msg import Marker, MarkerArray
 from cv_bridge import CvBridge
 from builtin_interfaces.msg import Duration
@@ -92,3 +92,19 @@ def publish_imu(frame, imu_pub, clock):
     imu.linear_acceleration.z = float(imu_row['au'])
     
     imu_pub.publish(imu)
+
+def publish_gps(frame, gps_pub, clock):
+    gps = NavSatFix()
+    Imu_data = os.path.join(OXT_DATA_PATH, 'oxts/data/%010d.txt'%frame)
+    df = pd.read_csv(Imu_data, sep=' ', header=None)
+    df.columns = IMU_COLUMN_NAMES
+    gps_row = df.iloc[0]
+    gps.header.stamp = clock.now().to_msg()
+    gps.header.frame_id = FRAME_ID  # 依你的座標框架而定
+
+    gps.latitude = float(gps_row['lat'])
+    gps.longitude = float(gps_row['lon'])
+    gps.altitude = float(gps_row['alt'])
+
+    gps_pub.publish(gps)
+

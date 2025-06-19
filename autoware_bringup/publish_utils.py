@@ -11,16 +11,33 @@ from cv_bridge import CvBridge
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
 
-Image_DATA_PATH = 'src/autoware_bringup/image/2011_09_26_drive_0002_sync/2011_09_26/2011_09_26_drive_0002_sync'
-OXT_DATA_PATH = 'src/autoware_bringup/image/2011_09_26_drive_0002_sync/2011_09_26/2011_09_26_drive_0002_sync'
+Image_DATA_PATH = '/home/zack/kitti/2011_09_26_drive_0005_sync/2011_09_26/2011_09_26_drive_0005_sync'
+OXT_DATA_PATH = '/home/zack/kitti/2011_09_26_drive_0005_sync/2011_09_26/2011_09_26_drive_0005_sync'
 cv_bridge  = CvBridge()
 data_number = len(os.listdir(os.path.join(Image_DATA_PATH, 'image_02/data')))
 FRAME_ID = 'map'  # 依你的座標框架而定
 IMU_COLUMN_NAMES = ['lat', 'lon', 'alt', 'roll', 'pitch', 'yaw', 'vn', 've', 'vf', 'vl', 'vu', 'ax', 'ay', 'az', 'af', 'al', 'au',
                     'wx', 'wy', 'wz', 'wf', 'wl', 'wu','posacc', 'velacc', 'navstat', 'numsats', 'posmode', 'velmode', 'orimode']
 
+TRACKING_COLUMN_NAMES = ['frame', 'track id', 'type', 'truncated', 'occluded', 'alpha', 'bbox_left', 'bbox_top', 'bbox_right', 'bbox_bottom', 
+              'height', 'width', 'length', 'loc_x', 'loc_y', 'loc_z', 'rot_y' ]
+
 def publish_image(frame, cam_pub):
     img = cv.imread(os.path.join(Image_DATA_PATH, 'image_02/data/%010d.png'%frame))
+    df = pd.read_csv('/home/zack/kitti/data_tracking_label_2/training/label_02/0000.txt', header=None, sep=' ')
+    df.columns = TRACKING_COLUMN_NAMES 
+    df.loc[df.type.isin(['Van','Truck','Tram']), 'type'] = 'Car'
+    df = df[df.type.isin(['Car','Pedestrian','Cyclist'])]
+    DETECTION = {'Car':(0,255,236), 'Pedestrian':(0,200,35), 'Cyclist':(241,25,39)}
+
+    boxes = np.array(df[df.frame==frame][['bbox_left', 'bbox_top', 'bbox_right', 'bbox_bottom']])
+    types = np.array(df[df.frame==frame]['type'])
+ 
+    for typ, box in zip(types, boxes):
+        top_left = int(box[0]), int(box[1])
+        bottom_right = int(box[2]), int(box[3])
+        cv.rectangle(img, top_left, bottom_right, DETECTION[typ], 2)
+        cv.putText(img, typ, (int(box[0]), int(box[1]) - 10), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     cam_pub.publish(cv_bridge.cv2_to_imgmsg(img, encoding='bgr8'))
 
 def publish_pcl(frame, PCL, clock):
@@ -107,4 +124,6 @@ def publish_gps(frame, gps_pub, clock):
     gps.altitude = float(gps_row['alt'])
 
     gps_pub.publish(gps)
+
+
 

@@ -1,16 +1,17 @@
 import rclpy
 import os
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 from std_msgs.msg import String
 from sensor_msgs.msg import Image, PointCloud2, Imu, NavSatFix
 from visualization_msgs.msg import Marker, MarkerArray
 from rclpy.node import Node
 from kitti_bringup import publish_utils 
 
-
 class PublisherImageNode(Node):
     def __init__(self):
-            super().__init__('publisher_data_node')
+            super().__init__('publisher_node')
             self.frame = 0
             self.cam_pub = self.create_publisher(Image, '/kitti_image', 10)
             self.PCL = self.create_publisher(PointCloud2, '/kitti_pcl', 10)
@@ -25,6 +26,7 @@ class PublisherImageNode(Node):
         publish_utils.publish_marker_array(self.marker, self.get_clock())
         publish_utils.publish_imu(self.frame, self.imu, self.get_clock())
         publish_utils.publish_gps(self.frame, self.gps, self.get_clock())
+        publish_utils.publish_3d_box(self.frame, self.box, self.get_clock())
         self.frame += 1
         if self.frame >= publish_utils.data_number:
             self.frame = 0

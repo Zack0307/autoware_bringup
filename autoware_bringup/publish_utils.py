@@ -10,7 +10,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from cv_bridge import CvBridge
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
-from kitti_bringup.kitti_utils import *
+from autoware_bringup.kitti_utils import *
 
 
 Image_DATA_PATH = '/home/zack/kitti/2011_09_26_drive_0005_sync/2011_09_26/2011_09_26_drive_0005_sync'

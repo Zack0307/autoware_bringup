@@ -10,7 +10,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from cv_bridge import CvBridge
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
-from autoware_bringup.kitti_utils import *
+from kitti_bringup.kitti_utils import *
 
 
 Image_DATA_PATH = '/home/zack/kitti/2011_09_26_drive_0005_sync/2011_09_26/2011_09_26_drive_0005_sync'
@@ -73,6 +73,8 @@ def publish_3d_box(frame, box_pub, clock):
     bbox = MarkerArray()
     camera_pm = np.array(df[df.frame==frame][['height','width','length','loc_x','loc_y','loc_z','rot_y']])
     types = np.array(df[df.frame==frame]['type'])
+    track_ids = np.array(df[df.frame==frame]['track id'])
+
 
     calib_list = []
     for box in camera_pm:
@@ -108,6 +110,36 @@ def publish_3d_box(frame, box_pub, clock):
             marker.points.append(Point(x=pl[0], y=pl[1], z=pl[2]))
             marker.points.append(Point(x=pr[0], y=pr[1], z=pr[2]))
         bbox.markers.append(marker)
+
+        text = Marker()
+        text.header.frame_id = FRAME_ID  # 依你的座標框架而定
+        text.header.stamp = clock.now().to_msg()
+        text.ns = "text_shapes"
+        text.id = i + 1000  # 確保ID不與其他標記衝突
+        text.type = Marker.TEXT_VIEW_FACING
+        text.action = Marker.ADD
+        text.lifetime = Duration(sec=int(LIFETIME), nanosec=int((LIFETIME % 1) * 1e9))  # 設定生命週期
+
+        p = np.mean(calib, axis=0)  # 計算文字位置為3D框的中心
+        text.pose.position.x = p[0]
+        text.pose.position.y = p[1]
+        text.pose.position.z = p[2] + 1.0
+        text.pose.orientation.w = 1.0  # 確保文字面向攝像頭
+
+        text.color.r = DETECTION[typ][0]/255.0
+        text.color.g = DETECTION[typ][1]/255.0
+        text.color.b = DETECTION[typ][2]/255.0
+        text.color.a = 1.0  # 透明度q
+
+        text.scale.z = 1.0  # 字體大小
+
+        text.color.r = DETECTION[typ][0]/255.0
+        text.color.g = DETECTION[typ][1]/255.0
+        text.color.b = DETECTION[typ][2]/255.0
+        text.color.a = 1.0  # 透明度
+        text.text = str(track_ids[i])  # 顯示類型 
+        bbox.markers.append(text)
+
     box_pub.publish(bbox)
 
 def publish_marker_array(marker_pub, clock):

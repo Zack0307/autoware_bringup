@@ -10,7 +10,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from cv_bridge import CvBridge
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
-from kitti_bringup.kitti_bringup.kitti_utils import *
+from autoware_bringup.kitti_utils import *
 
 
 Image_DATA_PATH = '/home/zack/kitti/2011_09_26_drive_0005_sync/2011_09_26/2011_09_26_drive_0005_sync'
@@ -24,7 +24,7 @@ IMU_COLUMN_NAMES = ['lat', 'lon', 'alt', 'roll', 'pitch', 'yaw', 'vn', 've', 'vf
 TRACKING_COLUMN_NAMES = ['frame', 'track id', 'type', 'truncated', 'occluded', 'alpha', 'bbox_left', 'bbox_top', 'bbox_right', 'bbox_bottom', 
               'height', 'width', 'length', 'loc_x', 'loc_y', 'loc_z', 'rot_y' ]
     
-DETECTION = {'Car':(0,255,236), 'Pedestrian':(0,200,35), 'Cyclist':(241,25,39)}
+DETECTION = {'Car':(0,255,200), 'Pedestrian':(0,200,35), 'Cyclist':(116,100,200)}
 LIFETIME = 0.1 # Marker的生命週期，單位為秒
 
 #LINE POINT
@@ -40,11 +40,6 @@ df = df[df.type.isin(['Car','Pedestrian','Cyclist'])]
 
 def publish_image(frame, cam_pub):
     img = cv.imread(os.path.join(Image_DATA_PATH, 'image_02/data/%010d.png'%frame))
-    df = pd.read_csv('/home/zack/kitti/data_tracking_label_2/training/label_02/0000.txt', header=None, sep=' ')
-    df.columns = TRACKING_COLUMN_NAMES 
-    df.loc[df.type.isin(['Van','Truck','Tram']), 'type'] = 'Car'
-    df = df[df.type.isin(['Car','Pedestrian','Cyclist'])]
-    DETECTION = {'Car':(0,255,236), 'Pedestrian':(0,200,35), 'Cyclist':(241,25,39)}
 
     boxes = np.array(df[df.frame==frame][['bbox_left', 'bbox_top', 'bbox_right', 'bbox_bottom']])
     types = np.array(df[df.frame==frame]['type'])
@@ -68,25 +63,25 @@ def compute_3d_box(h, w, l, x, y, z, yaw):
                     [0,1,0],
                     [-np.sin(yaw),0,np.cos(yaw)]])
         x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2]   #局部座標系->x:車頭到車尾(length)、y:上下、z:左右(width)
-        y_corners = [0,0,0,0,h,h,h,h]
+        y_corners = [0,0,0,0,-h,-h,-h,-h]
         z_corners = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2]
         corner_3d = np.dot(R, np.vstack([x_corners, y_corners, z_corners])) #世界座標系->z:length、x:width
         corner_3d += np.vstack([x, y, z]) 
         return corner_3d
             
-def publish_3d_box(frame, box_pub, type, clock):
+def publish_3d_box(frame, box_pub, clock):
     bbox = MarkerArray()
     camera_pm = np.array(df[df.frame==frame][['height','width','length','loc_x','loc_y','loc_z','rot_y']])
+    types = np.array(df[df.frame==frame]['type'])
 
     calib_list = []
     for box in camera_pm:
-        cam_box = compute_3d_box(*camera_pm)
+        cam_box = compute_3d_box(*box)
         cam_to_velodyne = Calibration('/home/zack/kitti/2011_09_26_drive_0005_sync/2011_09_26/2011_09_26_drive_0005_sync/calib', from_video = True)
         calib = cam_to_velodyne.project_rect_to_velo(cam_box.T)  #[8,3]
         calib_list.append(calib)
 
-    
-    for i, calib in enumerate(calib_list):
+    for i, (calib, typ) in enumerate(zip(calib_list, types)):
         marker = Marker()
         marker.header.frame_id = FRAME_ID  # 依你的座標框架而定
         marker.header.stamp = clock.now().to_msg()
@@ -94,25 +89,25 @@ def publish_3d_box(frame, box_pub, type, clock):
         marker.id = i
         marker.type = Marker.LINE_LIST  
         marker.action = Marker.ADD
-        marker.lifetime = Duration(LIFETIME)  # 設定生命週期
+        marker.lifetime = Duration(sec=int(LIFETIME), nanosec=int((LIFETIME % 1) * 1e9))  # 設定生命週期
         
         # 顏色 (RGBA)
-        marker.color.r = 1.0/DETECTION[type][0]
-        marker.color.g = 0.0/DETECTION[type][1]
-        marker.color.b = 0.0/DETECTION[type][2]
-        marker.color.a = 1.0  # 透明度
+        marker.color.r = DETECTION[typ][0]/255.0
+        marker.color.g = DETECTION[typ][1]/255.0
+        marker.color.b = DETECTION[typ][2]/255.0
+        marker.color.a = 1.0  # 透明度q
         # 尺寸
-        marker.scale.x = 0.5
-        marker.scale.y = 0.5
-        marker.scale.z = 0.5
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.1
 
         marker.points = []
         for line in LINES:
-            pl = calib[line[[0]]]
-            pr = calib[line[[1]]]
-            marker.points.append(Point(pl[0], pl[1], pl[2]))
-            marker.points.append(Point(pr[0], pr[1], pr[2]))
-        bbox.marker.append(marker)
+            pl = calib[line[0]]
+            pr = calib[line[1]]
+            marker.points.append(Point(x=pl[0], y=pl[1], z=pl[2]))
+            marker.points.append(Point(x=pr[0], y=pr[1], z=pr[2]))
+        bbox.markers.append(marker)
     box_pub.publish(bbox)
 
 def publish_marker_array(marker_pub, clock):
